@@ -1,2 +1,2 @@
-# prod-diabetic-capstone
-This is the prod version of my repo that will be used for my website
+# diabetes-tracker-capstone
+My capstone project which is a simple diabetes tracker using ML model that I train 

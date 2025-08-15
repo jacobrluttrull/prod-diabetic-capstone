@@ -1,0 +1,12 @@
+{
+  "best_f1_threshold": 0.47,
+  "best_row": {
+    "threshold": 0.47,
+    "f1": 0.8091444405957742,
+    "precision": 0.9839932603201348,
+    "recall": 0.6870588235294117
+  },
+  "sweep_csv": "models/threshold_sweep.csv",
+  "model_path": "models/calibrated_diabetes_model_v5.pkl",
+  "data_path": "data/diabetes_prediction_dataset.csv"
+}
