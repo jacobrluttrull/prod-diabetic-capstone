@@ -1,16 +1,18 @@
-import streamlit as st
-import pandas as pd
-import joblib
 import os
-import shap
-from shap.plots import waterfall
-import numpy as np
-import matplotlib.pyplot as plt
-from cycler import cycler
-from datetime import datetime
-from pathlib import Path
 import base64
 from io import BytesIO
+from pathlib import Path
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import joblib
+import shap
+import matplotlib.pyplot as plt
+from shap.plots import waterfall
+from cycler import cycler
+import streamlit as st
+import streamlit.components.v1 as components
 
 # -------------------------
 # Paths (repo-root aware)
@@ -100,6 +102,83 @@ def resource_links(region: str):
     }
     return global_links + by_region.get(region, [])
 
+def show_image_viewer(file_path: Path, caption: str = "", height: int = 420):
+    """
+    Inline image with a real fullscreen button (browser Fullscreen API).
+    Uses base64 data URIs so it doesn't rely on Streamlit's media storage.
+    If fullscreen is blocked by the host, it falls back to 'Open in new tab'.
+    """
+    if not file_path.exists():
+        st.info(f"Missing: {file_path}")
+        return
+
+    try:
+        data_uri = file_to_data_uri(file_path)
+    except Exception as e:
+        st.warning(f"Could not display {file_path.name}: {e}")
+        return
+
+    html = f"""
+    <div id="wrap" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+                          color:#eaeaea;background:#0b0b0b;padding:6px;text-align:center;">
+      <figure style="margin:0;">
+        <img id="img" src="{data_uri}" alt="{caption}"
+             style="max-width:100%;height:auto;cursor:zoom-in;border:1px solid #1e1e1e;border-radius:8px;"/>
+        <figcaption style="margin-top:6px;color:#a8a8a8;font-size:0.9rem;">{caption}</figcaption>
+      </figure>
+      <div style="margin-top:8px;">
+        <button onclick="goFS()" style="padding:6px 10px;border:1px solid #333;background:#111;
+                                        color:#eaeaea;border-radius:8px;">
+          🔎 Fullscreen
+        </button>
+        <a href="{data_uri}" target="_blank" style="margin-left:10px;color:#9ecbff;text-decoration:none;">
+          Open in new tab
+        </a>
+      </div>
+    </div>
+
+    <script>
+    const img = document.getElementById('img');
+    const wrap = document.getElementById('wrap');
+
+    function enterStyles() {{
+      img.style.width = '100vw';
+      img.style.height = '100vh';
+      img.style.objectFit = 'contain';
+      img.style.cursor = 'zoom-out';
+      wrap.style.background = '#000';
+    }}
+    function exitStyles() {{
+      img.style.width = '';
+      img.style.height = '';
+      img.style.objectFit = '';
+      img.style.cursor = 'zoom-in';
+      wrap.style.background = '#0b0b0b';
+    }}
+
+    function goFS() {{
+      const el = wrap;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (req) {{
+        req.call(el).then(() => {{
+          enterStyles();
+        }}).catch(() => {{
+          window.open('{data_uri}', '_blank');
+        }});
+      }} else {{
+        window.open('{data_uri}', '_blank');
+      }}
+    }}
+
+    document.addEventListener('fullscreenchange', () => {{
+      if (!document.fullscreenElement) {{
+        exitStyles();
+      }}
+    }});
+    </script>
+    """
+    components.html(html, height=height, scrolling=False)
+
 # -------------------------
 # Page + global style
 # -------------------------
@@ -121,7 +200,8 @@ st.markdown(
       button[kind="primary"]{ background:#1a1a1a !important; color:var(--text) !important; border:1px solid var(--border) !important; }
       button[kind="secondary"]{ background:#111 !important; color:var(--text) !important; border:1px solid var(--border) !important; }
     </style>
-    """, unsafe_allow_html=True,
+    """,
+    unsafe_allow_html=True,
 )
 
 # -------------------------
@@ -156,17 +236,12 @@ except Exception as e:
 # Sidebar controls
 # -------------------------
 st.sidebar.header("Settings")
-threshold = st.sidebar.slider("Classification Threshold", 0.0, 1.0, 0.26, 0.01)
+threshold = st.sidebar.slider("Classification Threshold", 0.0, 1.0, 0.245, 0.01)
 st.sidebar.caption(
     "Lower threshold catches more cases (higher sensitivity) but more false positives. "
-    "Higher threshold is stricter but can miss cases. 0.26 was chosen from validation sweeps as a good balance."
+    "Higher threshold is stricter but can miss cases. 0.245 was chosen from validation sweeps as a good balance. "
+    "You can see this graph in the 'Model accuracy' section on the right."
 )
-th_img = RESULTS_DIR / "threshold_curve.png"
-if th_img.exists():
-    uri = file_to_data_uri(th_img)
-    st.sidebar.markdown(f'<img src="{uri}" alt="Threshold sweep (F1)" style="max-width:100%;">', unsafe_allow_html=True)
-else:
-    st.sidebar.caption("Threshold sweep image not found.")
 
 log_predictions = st.sidebar.checkbox("Log predictions locally (CSV)", value=False)
 
@@ -243,6 +318,23 @@ with st.expander("ℹ️ About this App", expanded=False):
         This app was built for educational purposes only, showcasing how machine learning can be applied to health data.
         """
     )
+
+# -------------------------
+# Accuracy section (true fullscreen buttons)
+# -------------------------
+with st.expander("Model accuracy (validation)", expanded=False):
+    c1, c2 = st.columns(2)
+    with c1:
+        show_image_viewer(RESULTS_DIR / "roc_curve.png", "ROC (AUC ≈ 0.98)")
+    with c2:
+        show_image_viewer(RESULTS_DIR / "pr_curve.png", "Precision–Recall (AP ≈ 0.88)")
+
+    c3, c4 = st.columns(2)
+    with c3:
+        show_image_viewer(RESULTS_DIR / "comparison.png", "Model comparison (validation F1)")
+    with c4:
+        show_image_viewer(RESULTS_DIR / "threshold_curve_prod_metrics.png",
+                          "Why I Chose This Threshold (threshold = 0.245)")
 
 # -------------------------
 # Inputs
@@ -411,11 +503,11 @@ if st.session_state["show_prediction"]:
                 table_df["Effect on risk"] = [f"{arrow(v)} {strength(v)}" for v in table_df["SHAP value"]]
                 display_df = table_df[["Feature", "Input value", "Effect on risk"]].rename(columns={"Input value": "Your value"})
                 display_df.index = display_df.index + 1; display_df.index.name = "#"
-                display_df = display_df.astype(str)  # Arrow-safe
+                display_df = display_df.astype(str)
                 st.caption("**How to read this:** ↑ pushes probability *higher*, ↓ pushes it *lower*. Strength is relative across factors for *your* prediction.")
                 st.dataframe(display_df, use_container_width=True)
 
-                # Bar chart (save -> data URI)
+                # Bar chart -> embed via data URI
                 sub = table_df.head(8).iloc[::-1]
                 fig2, ax2 = plt.subplots(figsize=(8, max(3, 0.6 * len(sub))))
                 ax2.barh(sub["Feature"], sub["SHAP value"], color="#FFFFFF", edgecolor="#FFFFFF")
