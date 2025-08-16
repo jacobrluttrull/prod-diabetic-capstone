@@ -1,5 +1,6 @@
 import os
 import base64
+import hashlib
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
@@ -104,77 +105,104 @@ def resource_links(region: str):
 
 def show_image_viewer(file_path: Path, caption: str = "", height: int = 420):
     """
-    Inline image with a real fullscreen button (browser Fullscreen API).
-    Uses base64 data URIs so it doesn't rely on Streamlit's media storage.
-    If fullscreen is blocked by the host, it falls back to 'Open in new tab'.
+    Inline image with a real fullscreen button (Fullscreen API) and a robust
+    'Open in new tab' that uses a Blob URL (works when data: links are blocked).
     """
     if not file_path.exists():
         st.info(f"Missing: {file_path}")
         return
 
     try:
-        data_uri = file_to_data_uri(file_path)
+        data_uri = file_to_data_uri(file_path)  # data:image/png;base64,....
     except Exception as e:
         st.warning(f"Could not display {file_path.name}: {e}")
         return
 
+    uid = hashlib.md5(str(file_path).encode("utf-8")).hexdigest()[:10]
     html = f"""
-    <div id="wrap" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    <div id="wrap-{uid}" style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
                           color:#eaeaea;background:#0b0b0b;padding:6px;text-align:center;">
       <figure style="margin:0;">
-        <img id="img" src="{data_uri}" alt="{caption}"
+        <img id="img-{uid}" src="{data_uri}" alt="{caption}"
              style="max-width:100%;height:auto;cursor:zoom-in;border:1px solid #1e1e1e;border-radius:8px;"/>
         <figcaption style="margin-top:6px;color:#a8a8a8;font-size:0.9rem;">{caption}</figcaption>
       </figure>
       <div style="margin-top:8px;">
-        <button onclick="goFS()" style="padding:6px 10px;border:1px solid #333;background:#111;
-                                        color:#eaeaea;border-radius:8px;">
+        <button id="fs-{uid}" style="padding:6px 10px;border:1px solid #333;background:#111;
+                                      color:#eaeaea;border-radius:8px;cursor:pointer;">
           🔎 Fullscreen
         </button>
-        <a href="{data_uri}" target="_blank" style="margin-left:10px;color:#9ecbff;text-decoration:none;">
-          Open in new tab
-        </a>
+        <button id="open-{uid}" style="padding:6px 10px;border:1px solid #333;background:#111;
+                                        color:#eaeaea;border-radius:8px;cursor:pointer;margin-left:10px;">
+          ↗ Open in new tab
+        </button>
       </div>
     </div>
 
     <script>
-    const img = document.getElementById('img');
-    const wrap = document.getElementById('wrap');
+    (function(){{
+      const dataUri = "{data_uri}";
+      const uid = "{uid}";
+      const wrap = document.getElementById("wrap-" + uid);
+      const img  = document.getElementById("img-" + uid);
+      const btnFS = document.getElementById("fs-" + uid);
+      const btnOpen = document.getElementById("open-" + uid);
 
-    function enterStyles() {{
-      img.style.width = '100vw';
-      img.style.height = '100vh';
-      img.style.objectFit = 'contain';
-      img.style.cursor = 'zoom-out';
-      wrap.style.background = '#000';
-    }}
-    function exitStyles() {{
-      img.style.width = '';
-      img.style.height = '';
-      img.style.objectFit = '';
-      img.style.cursor = 'zoom-in';
-      wrap.style.background = '#0b0b0b';
-    }}
-
-    function goFS() {{
-      const el = wrap;
-      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-      if (req) {{
-        req.call(el).then(() => {{
-          enterStyles();
-        }}).catch(() => {{
-          window.open('{data_uri}', '_blank');
-        }});
-      }} else {{
-        window.open('{data_uri}', '_blank');
+      function enterStyles() {{
+        img.style.width = "100vw";
+        img.style.height = "100vh";
+        img.style.objectFit = "contain";
+        img.style.cursor = "zoom-out";
+        wrap.style.background = "#000";
       }}
-    }}
-
-    document.addEventListener('fullscreenchange', () => {{
-      if (!document.fullscreenElement) {{
-        exitStyles();
+      function exitStyles() {{
+        img.style.width = "";
+        img.style.height = "";
+        img.style.objectFit = "";
+        img.style.cursor = "zoom-in";
+        wrap.style.background = "#0b0b0b";
       }}
-    }});
+
+      function openBlobTab() {{
+        try {{
+          const b64 = dataUri.split(",")[1];
+          const byteChars = atob(b64);
+          const byteNums = new Array(byteChars.length);
+          for (let i = 0; i < byteChars.length; i++) {{
+            byteNums[i] = byteChars.charCodeAt(i);
+          }}
+          const byteArray = new Uint8Array(byteNums);
+          const blob = new Blob([byteArray], {{ type: "image/png" }});
+          const url = URL.createObjectURL(blob);
+          window.open(url, "_blank");
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+        }} catch (e) {{
+          console.error(e);
+          // Fallback: try data URI (may be blocked by CSP)
+          window.open(dataUri, "_blank");
+        }}
+      }}
+
+      btnOpen.addEventListener("click", openBlobTab);
+
+      btnFS.addEventListener("click", function(){{
+        const el = wrap;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+        if (req) {{
+          Promise.resolve(req.call(el))
+            .then(enterStyles)
+            .catch(openBlobTab);
+        }} else {{
+          openBlobTab();
+        }}
+      }});
+
+      document.addEventListener("fullscreenchange", () => {{
+        if (!document.fullscreenElement) {{
+          exitStyles();
+        }}
+      }});
+    }})();
     </script>
     """
     components.html(html, height=height, scrolling=False)
@@ -320,7 +348,7 @@ with st.expander("ℹ️ About this App", expanded=False):
     )
 
 # -------------------------
-# Accuracy section (true fullscreen buttons)
+# Accuracy section (true fullscreen + robust open-in-new-tab)
 # -------------------------
 with st.expander("Model accuracy (validation)", expanded=False):
     c1, c2 = st.columns(2)
