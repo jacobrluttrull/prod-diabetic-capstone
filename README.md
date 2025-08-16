@@ -68,6 +68,7 @@ An educational Streamlit app for WGU C964 showing how a trained ML model can est
 │  ├─ make_threshold_sweep.py
 │  └─ make_prod_threshold_metrics.py
 ├─ logs/                              # created at runtime (optional)
+└─main.py                             # (optional; runs app)
 ├─ requirements.txt
 └─ README.md
 ```
