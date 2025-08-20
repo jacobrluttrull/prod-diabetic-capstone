@@ -93,7 +93,7 @@ An educational Streamlit app for WGU C964 showing how a trained ML model can est
 py -3.10 -m venv .venv
 . .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-streamlit run app/gui.py
+python main.py
 ```
 
 > If PowerShell blocks scripts:
@@ -105,7 +105,7 @@ streamlit run app/gui.py
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app/gui.py
+python main.py
 ```
 
 The browser will open at `http://localhost:8501`.
