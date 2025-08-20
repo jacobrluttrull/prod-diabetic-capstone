@@ -1,23 +1,4 @@
-"""
-Retrain + Calibrate (v4)
-------------------------
-A clean, end-to-end script to (re)train your diabetes model with a proper
-train/calibration/test split, compare isotonic vs sigmoid calibration,
-select the better one by Brier score, sweep thresholds, and save outputs.
 
-Usage (from repo root):
-    python training/retrain_calibrate_v4.py
-
-Artifacts written to ./models/ :
-    - calibrated_diabetes_model_v4.pkl
-    - test_metrics.json
-    - confusion_matrix.png
-    - reliability_curves.png
-    - threshold_sweep.csv
-
-This script *reuses your existing preprocessing* by cloning it from the
-current calibrated model, so encoding stays consistent with the app.
-"""
 from __future__ import annotations
 
 import os
