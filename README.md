@@ -1,4 +1,4 @@
-# Type 2 Diabetes Prediction App 🩺
+# Type 2 Diabetes Prediction App 
 
 An educational Streamlit app for WGU C964 showing how a trained ML model can estimate Type 2 Diabetes risk from basic inputs (age, BMI, HbA1c, blood glucose, etc.). It includes accuracy visuals (ROC, PR, threshold/F1), explainability (SHAP), and a clean user experience with logging and CSV export.
 
@@ -154,7 +154,7 @@ The browser will open at `http://localhost:8501`.
 
 7. **Download & logging**
 
-   * **⬇️ Download Report (CSV)** for the current run.
+   * **⬇ Download Report (CSV)** for the current run.
    * If logging is enabled, each run is appended to `logs/predictions_log.csv`.
 
 ---
